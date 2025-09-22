@@ -1,8 +1,8 @@
 from config import settings
 from typing import Optional
+from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
-import datetime
 
 def get_password_hash(password: str) -> str:
     """
@@ -27,11 +27,9 @@ def create_access_token(data: dict) -> str:
     """
 
     payload = data.copy()
-    payload.update({ "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=settings.access_token_expire_minutes) })
+    payload.update({ "exp": datetime.now(timezone.utc) + timedelta(minutes=int(settings.access_token_expire_minutes))})
 
-    token = jwt.encode(payload, settings.secret_key)
-
-    return token
+    return jwt.encode(payload, settings.secret_key, algorithm="HS256")
 
 def verify_token(token: str) -> Optional[dict]:
     """
@@ -39,7 +37,7 @@ def verify_token(token: str) -> Optional[dict]:
     """
 
     try:
-        payload = jwt.decode(token, settings.secret_key)
+        payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
         return payload
     except jwt.ExpiredSignatureError:
         return None

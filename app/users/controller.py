@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Request
 from database import users_collection
 from app.users.model import UserSignup, UserLogin
@@ -41,15 +42,16 @@ async def get_user(request: Request):
     payload = get_current_user(request)
 
     # Get the user from the database
-    user = users_collection.find_one({"_id": payload["_id"]})
+    user = users_collection.find_one({"_id": ObjectId(payload["_id"])})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     return {
+        "role": user["role"],
         "username": user["username"],
         "email": user["email"],
-        "is_active": user.get("is_active", True),
-        "is_verified": user.get("is_verified", False)
+        "is_active": user["is_active"],
+        "is_verified": user["is_verified"]
     }
 
 @user_router.post("/signup")
@@ -69,6 +71,7 @@ async def signup(body: UserSignup):
 
     # Create the user
     user = users_collection.insert_one({
+        "role": "user",
         "username": body.username,
         "email": body.email,
         "password": hashed_password,
@@ -78,9 +81,15 @@ async def signup(body: UserSignup):
     })
 
     # Create the access token
-    access_token = create_access_token({"_id": str(user.inserted_id), "username": body.username})
+    access_token = create_access_token({
+        "_id": str(user.inserted_id),
+        "role": "user",
+        "username": body.username,
+        "email": body.email
+    })
 
     return {
+        "message": "User created successfully",
         "token_type": "bearer",
         "access_token": access_token
     }
@@ -101,9 +110,15 @@ async def login(body: UserLogin):
         raise HTTPException(status_code=400, detail="Invalid username or password")
 
     # Create the access token
-    access_token = create_access_token({"_id": str(user["_id"]), "username": user["username"]})
+    access_token = create_access_token({
+        "_id": str(user["_id"]),
+        "role": user["role"],
+        "username": user["username"],
+        "email": user["email"]
+    })
 
     return {
+        "message": "User logged in successfully",
         "token_type": "bearer",
         "access_token": access_token
     }
