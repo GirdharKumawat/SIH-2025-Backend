@@ -8,10 +8,12 @@ from app.utils import get_password_hash, verify_password, create_access_token, v
 user_router = APIRouter()
 
 @user_router.get("/me")
-async def get_user(authorization: str = Header(None)):
+async def get_user(authorization: str = Header(...)):
     """
     Get user details endpoint
     """
+
+    print("Authorization Header:", authorization)
 
     # Extract and verify the token
     if not authorization or not authorization.startswith("Bearer "):
