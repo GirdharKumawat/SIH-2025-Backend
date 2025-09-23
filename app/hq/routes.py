@@ -37,9 +37,25 @@ async def set_user_verified(id: str):
 # Endpoint to get all groups
 @hq_router.get("/all-groups")
 async def get_all_groups():
+    groups_data = []
     try:
         groups = list(groups_collection.find({}, {"_id": 0}))
-        return {"groups": groups}
+        print(f"Fetched groups: {groups}")
+        for group in groups:
+            members_id_list     = group.get("members_id", [])
+            member_details = list(users_collection.find(
+                {"_id": {"$in": [ObjectId(member_id) for member_id in members_id_list]}},
+                {"_id": 0, "password": 0}
+            ))
+            
+            group_info = {
+                "group_name": group.get("group_name"),
+                "members": member_details
+            }
+            groups_data.append(group_info)
+            
+        
+        return {"groups": groups_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
