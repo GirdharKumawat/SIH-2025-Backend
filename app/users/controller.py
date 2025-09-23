@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Request
+from starlette.websockets import WebSocket
 from database import users_collection
 from app.users.model import UserSignup, UserLogin
 from app.utils import get_password_hash, verify_password, create_access_token, verify_token
@@ -10,7 +11,7 @@ user_router = APIRouter()
 
 # ==================== Functions ====================>
 
-def get_current_user(request: Request):
+def get_current_user(request: Request | WebSocket):
     """
     Get the current user from the request
     """
