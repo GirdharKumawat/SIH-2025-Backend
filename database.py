@@ -1,8 +1,8 @@
-from pymongo import MongoClient
+from pymongo import AsyncMongoClient
 from config import settings
 
 # MongoDB client setup
-client = MongoClient(settings.database_url)
+client = AsyncMongoClient(settings.database_url)
 db = client["chatapp"]
 
 # Collections
