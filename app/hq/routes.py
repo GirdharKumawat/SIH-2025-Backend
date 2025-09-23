@@ -31,7 +31,6 @@ async def get_unverified_users():
 # Endpoint to set a user as verified
 @hq_router.put("/set-verified/{id}")
 async def set_user_verified(id: str):
-    print(f"Setting user {id} as verified")
     try:
         result = users_collection.update_one({"_id":ObjectId(id) }, {"$set": {"is_verified": True}})
         if result.matched_count == 0:
@@ -45,23 +44,20 @@ async def set_user_verified(id: str):
 async def get_all_groups():
     groups_data = []
     try:
-        groups = list(groups_collection.find({}))
-        
+        groups = list(groups_collection.find({}, {"_id": 0}))
+        print(f"Fetched groups: {groups}")
         for group in groups:
-            group["_id"] = str(group["_id"])
-            members_id_list   = group.get("members_id", [])
+            members_id_list     = group.get("members_id", [])
             member_details = list(users_collection.find(
                 {"_id": {"$in": [ObjectId(member_id) for member_id in members_id_list]}},
                 {"_id": 0, "password": 0}
             ))
-            
             group_info = {
                 "_id": group["_id"],
                 "name": group.get("name"),
                 "members": member_details
             }
             groups_data.append(group_info)
-            
         
         return {"groups": groups_data}
     except Exception as e:
@@ -73,11 +69,9 @@ async def create_group(group: GroupModel):
     """
     Create a new group with the given name and member IDs.
     """
-     
     print(f"Creating group: {group.dict()}")
     try:
       groups_collection.insert_one(group.dict())
-                                    
       return {"message": "Group created successfully", "group": group.dict()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -87,14 +81,14 @@ async def add_members_to_group(group_id: str, add_members_data: AddMembersModel)
     """
     Add members to an existing group by group ID.
     """
-    print(f"Adding members to group {group_id}: {add_members_data.dict()}")
+
     try:
         # Handle both 'members' and 'members_id' field names
         members_to_add = add_members_data.members if hasattr(add_members_data, 'members') else add_members_data.members_id
         
         result = groups_collection.update_one(
             {"_id": ObjectId(group_id)},
-            {"$addToSet": {"members_id": {"$each": members_to_add}}} # addToSet to avoid duplicates
+            {"$addToSet": {"members_id": {"$each": add_members_data.members_id}}} # addToSet to avoid duplicates
         )
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Group not found")
@@ -108,10 +102,11 @@ async def delete_member_from_group(group_id: str, member_id: str):
     """
     Delete a member from a group by group ID and member ID.
     """
+
     try:
         result = groups_collection.update_one(
             {"_id": ObjectId(group_id)},
-            {"$pull": {"members_id": member_id}} # pull to remove the member
+            {"$pull": {"members": member_id}}
         )
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Group not found")
