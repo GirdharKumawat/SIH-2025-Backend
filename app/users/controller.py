@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Request
-from starlette.websockets import WebSocket
 from database import users_collection
 from app.users.model import UserSignup, UserLogin
 from app.utils import get_password_hash, verify_password, create_access_token, verify_token
@@ -11,7 +10,19 @@ user_router = APIRouter()
 
 # ==================== Functions ====================>
 
-def get_current_user(request: Request | WebSocket):
+def get_current_user_from_token(access_token: str):
+    """
+    Get the current user from the access token
+    """
+
+    # Verify the access token
+    payload = verify_token(access_token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    return payload
+
+def get_current_user(request: Request):
     """
     Get the current user from the request
     """
@@ -24,12 +35,8 @@ def get_current_user(request: Request | WebSocket):
     # Extract the access token
     access_token = authorization.split(" ")[1]
 
-    # Verify the token
-    payload = verify_token(access_token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    return payload
+    # Retrieve the user from the token
+    return get_current_user_from_token(access_token)
 
 # ==================== Endpoints ====================>
 
@@ -43,7 +50,7 @@ async def get_user(request: Request):
     payload = get_current_user(request)
 
     # Get the user from the database
-    user = users_collection.find_one({"_id": ObjectId(payload["_id"])})
+    user = await users_collection.find_one({"_id": ObjectId(payload["_id"])})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -62,16 +69,16 @@ async def signup(body: UserSignup):
     """
 
     # Check if the user already exists
-    if users_collection.find_one({"username": body.username}):
+    if await users_collection.find_one({"username": body.username}):
         raise HTTPException(status_code=400, detail="Username already exists")
-    if users_collection.find_one({"email": body.email}):
+    if await users_collection.find_one({"email": body.email}):
         raise HTTPException(status_code=400, detail="Email already exists")
 
     # Hashed the password
     hashed_password = get_password_hash(body.password)
 
     # Create the user
-    user = users_collection.insert_one({
+    user = await users_collection.insert_one({
         "role": "user",
         "username": body.username,
         "email": body.email,
@@ -102,7 +109,7 @@ async def login(body: UserLogin):
     """
 
     # Find the user
-    user = users_collection.find_one({"username": body.username})
+    user = await users_collection.find_one({"username": body.username})
     if not user:
         raise HTTPException(status_code=400, detail="Invalid username or password")
 
