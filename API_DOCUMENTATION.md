@@ -1,293 +1,191 @@
-# API Endpoints Documentation for Frontend
+# HQ API Documentation
 
 ## Base URL
-Your FastAPI app runs on: `http://localhost:8000` (during development)
-
-## Authentication
-- **Required for protected endpoints**: Bearer token in Authorization header
-- **Format**: `Authorization: Bearer <access_token>`
-
----
-
-## 1. USER ENDPOINTS (Prefix: `/api/users`)
-
-### 1.1 User Signup
-- **Endpoint**: `POST /api/users/signup`
-- **Description**: Register a new user
-- **Request Body**:
-```json
-{
-  "username": "string",
-  "email": "valid_email@example.com",
-  "password": "string"
-}
 ```
-- **Response** (201 Created):
-```json
-{
-  "message": "User created successfully",
-  "token_type": "bearer",
-  "access_token": "jwt_token_string"
-}
-```
-- **Error Responses**:
-  - `400`: Username or email already exists
-  - `422`: Validation error (invalid email format, missing fields)
-
-### 1.2 User Login
-- **Endpoint**: `POST /api/users/login`
-- **Description**: Authenticate user and get access token
-- **Request Body**:
-```json
-{
-  "username": "string",
-  "password": "string"
-}
-```
-- **Response** (200 OK):
-```json
-{
-  "message": "User logged in successfully",
-  "token_type": "bearer",
-  "access_token": "jwt_token_string"
-}
-```
-- **Error Responses**:
-  - `400`: Invalid username or password
-  - `422`: Validation error
-
-### 1.3 Get Current User
-- **Endpoint**: `GET /api/users/me`
-- **Description**: Get current user's profile information
-- **Headers**: `Authorization: Bearer <token>`
-- **Request Body**: None
-- **Response** (200 OK):
-```json
-{
-  "role": "user",
-  "username": "string",
-  "email": "string",
-  "is_active": true,
-  "is_verified": false
-}
-```
-- **Error Responses**:
-  - `401`: Missing or invalid authorization header
-  - `404`: User not found
-
----
-
-## 2. GROUP ENDPOINTS (Prefix: `/api/groups`)
-
-### 2.1 Create Group
-- **Endpoint**: `POST /api/groups/`
-- **Description**: Create a new group (requires authentication)
-- **Headers**: `Authorization: Bearer <token>`
-- **Request Body**:
-```json
-{
-  "name": "string",
-  "description": "string (optional)",
-  "members": ["member_id_1", "member_id_2"] // optional array of strings
-}
-```
-- **Response** (200 OK):
-```json
-{
-  "message": "Group created successfully",
-  "group": {
-    "name": "string",
-    "description": "string",
-    "members": ["array", "of", "member_ids"]
-  }
-}
-```
-- **Error Responses**:
-  - `401`: Authentication required
-  - `422`: Validation error
-
----
-
-## 3. HQ ENDPOINTS (Note: NOT included in main.py - needs to be added)
-
-**⚠️ IMPORTANT**: The HQ routes are defined in `app/hq/routes.py` but NOT included in `main.py`. 
-To use these endpoints, add to main.py:
-```python
-from app.hq.routes import hq_router
-app.include_router(hq_router, prefix="/api/hq")
+/api/hq
 ```
 
-### 3.1 Get All Users
-- **Endpoint**: `GET /api/hq/all-users`
-- **Description**: Get all users (for HQ dashboard)
-- **Request Body**: None
-- **Response** (200 OK):
+## Endpoints
+
+### 1. Get All Users
+**GET** `/all-users`
+
+Get all users in the system (excluding passwords).
+
+**Request:**
+- No body required
+
+**Response:**
 ```json
 {
   "users": [
     {
-      "role": "user",
-      "username": "string",
-      "email": "string",
-      "is_active": true,
-      "is_verified": false,
-      "created_at": "2025-09-22T10:30:00Z"
+      "_id": "68d1101e5f759ee5b8186525",
+      "email": "user@example.com",
+      "name": "John Doe",
+      "is_verified": true,
+      "role": "user"
     }
   ]
 }
 ```
 
-### 3.2 Get Unverified Users
-- **Endpoint**: `GET /api/hq/unverified-users`
-- **Description**: Get all users who are not verified
-- **Request Body**: None
-- **Response** (200 OK):
+### 2. Get Unverified Users
+**GET** `/unverified-users`
+
+Get all users who are not yet verified.
+
+**Request:**
+- No body required
+
+**Response:**
 ```json
 {
   "unverified_users": [
     {
-      "role": "user",
-      "username": "string",
-      "email": "string",
-      "is_active": true,
+      "email": "newuser@example.com",
+      "name": "Jane Smith",
       "is_verified": false,
-      "created_at": "2025-09-22T10:30:00Z"
+      "role": "user"
     }
   ]
 }
 ```
 
-### 3.3 Verify User
-- **Endpoint**: `PUT /api/hq/set-verified/{id}`
-- **Description**: Set a user as verified
-- **Path Parameters**: `id` - MongoDB ObjectId of the user
-- **Request Body**: None
-- **Response** (200 OK):
+### 3. Set User as Verified
+**PUT** `/set-verified/{id}`
+
+Mark a user as verified by their ID.
+
+**Request:**
+- URL Parameter: `id` (string) - User ID
+
+**Response:**
 ```json
 {
-  "message": "User {id} has been verified"
+  "message": "User 68d1101e5f759ee5b8186525 has been verified"
 }
 ```
-- **Error Responses**:
-  - `404`: User not found
-  - `500`: Database error
 
-### 3.4 Get All Groups
-- **Endpoint**: `GET /api/hq/all-groups`
-- **Description**: Get all groups in the system
-- **Request Body**: None
-- **Response** (200 OK):
+### 4. Get All Groups
+**GET** `/all-groups`
+
+Get all groups with their member details.
+
+**Request:**
+- No body required
+
+**Response:**
 ```json
 {
   "groups": [
     {
-      "name": "string",
-      "members_id": ["user_id_1", "user_id_2"]
+      "_id": "68d2bffcd6aa5eede5858bf6",
+      "name": "Development Team",
+      "members": [
+        {
+          "email": "dev1@example.com",
+          "name": "Developer One",
+          "is_verified": true,
+          "role": "developer"
+        }
+      ]
     }
   ]
 }
 ```
 
-### 3.5 Create Group (HQ)
-- **Endpoint**: `POST /api/hq/create-group`
-- **Description**: Create a new group from HQ
-- **Request Body**:
+### 5. Create Group
+**POST** `/create-group`
+
+Create a new group with specified name and members.
+
+**Request Body:**
 ```json
 {
-  "name": "Group A",
-  "members_id": ["user_id_1", "user_id_2"] // optional
+  "name": "New Team",
+  "members_id": ["68d1101e5f759ee5b8186525", "68d1101e5f759ee5b8186526"]
 }
 ```
-- **Response** (200 OK):
+
+**Response:**
 ```json
 {
   "message": "Group created successfully",
   "group": {
-    "name": "Group A",
-    "members_id": ["user_id_1", "user_id_2"]
+    "name": "New Team",
+    "members_id": ["68d1101e5f759ee5b8186525", "68d1101e5f759ee5b8186526"]
   }
 }
 ```
 
-### 3.6 Add Members to Group
-- **Endpoint**: `PUT /api/hq/add-members/{group_id}`
-- **Description**: Add members to an existing group
-- **Path Parameters**: `group_id` - MongoDB ObjectId of the group
-- **Request Body**:
-```json
-{
-  "members_id": ["68d1101e5f759ee5b8186525", "68d1147241b456c064c56fa6"]
-}
-```
-- **Response** (200 OK):
-```json
-{
-  "message": "Members added to group {group_id}",
-  "added_members": ["68d1101e5f759ee5b8186525", "68d1147241b456c064c56fa6"]
-}
-```
-- **Error Responses**:
-  - `404`: Group not found
-  - `500`: Database error
+### 6. Add Members to Group
+**PUT** `/add-members/{group_id}`
 
-### 3.7 Delete Member from Group
-- **Endpoint**: `DELETE /api/hq/delete-member/{group_id}/{member_id}`
-- **Description**: Remove a member from a group
-- **Path Parameters**: 
-  - `group_id` - MongoDB ObjectId of the group
-  - `member_id` - User ID to remove
-- **Request Body**: None
-- **Response** (200 OK):
+Add new members to an existing group.
+
+**Request:**
+- URL Parameter: `group_id` (string) - Group ID
+
+**Request Body:**
 ```json
 {
-  "message": "Member {member_id} removed from group {group_id}"
-}
-```
-- **Error Responses**:
-  - `404`: Group not found
-  - `500`: Database error
-
----
-
-## Error Response Format
-All errors follow this format:
-```json
-{
-  "detail": "Error message description"
+  "members": ["68d1101e5f759ee5b8186527", "68d1101e5f759ee5b8186528"]
 }
 ```
 
-## Common HTTP Status Codes
-- **200**: Success
-- **201**: Created
-- **400**: Bad Request (validation error, duplicate data)
-- **401**: Unauthorized (missing/invalid token)
-- **404**: Not Found
-- **422**: Unprocessable Entity (validation error)
-- **500**: Internal Server Error
+**Response:**
+```json
+{
+  "message": "Members added to group 68d2bffcd6aa5eede5858bf6",
+  "added_members": ["68d1101e5f759ee5b8186527", "68d1101e5f759ee5b8186528"]
+}
+```
 
-## Frontend Implementation Notes
+### 7. Delete Member from Group
+**DELETE** `/delete-member/{group_id}/{member_id}`
 
-1. **Authentication Flow**:
-   - Use signup/login to get access token
-   - Store token securely (localStorage/sessionStorage)
-   - Include token in Authorization header for protected routes
+Remove a specific member from a group.
 
-2. **Token Management**:
-   - Check token expiration
-   - Implement token refresh if needed
-   - Handle 401 responses by redirecting to login
+**Request:**
+- URL Parameters: 
+  - `group_id` (string) - Group ID
+  - `member_id` (string) - Member ID to remove
 
-3. **HQ Routes**:
-   - Remember to add HQ router to main.py before using
-   - HQ routes likely need admin-level authentication (not implemented yet)
+**Response:**
+```json
+{
+  "message": "Member 68d1101e5f759ee5b8186525 removed from group 68d2bffcd6aa5eede5858bf6"
+}
+```
 
-4. **Error Handling**:
-   - Handle all error status codes appropriately
-   - Show user-friendly error messages
-   - Validate data on frontend before sending to API
+## Error Responses
 
-5. **Data Validation**:
-   - Email format validation
-   - Required field validation
-   - Password strength requirements (if needed)
+All endpoints may return these error responses:
+
+**404 Not Found:**
+```json
+{
+  "detail": "User not found"
+}
+```
+or
+```json
+{
+  "detail": "Group not found"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "detail": "Database error: [error message]"
+}
+```
+
+## Notes
+
+- All user IDs and group IDs are MongoDB ObjectId strings
+- The `members` field in add-members request contains an array of user IDs
+- Duplicate members are automatically prevented when adding to groups
+- Passwords are never included in any response

@@ -8,8 +8,14 @@ hq_router = APIRouter()
 @hq_router.get("/all-users")
 async def get_all_users():
     try:
-        users = list(users_collection.find({}, {"_id": 0, "password": 0}))
+        # convert _id to id and selerialize users _id to str
+        users = list(users_collection.find({}, {"password": 0}))
+        
+        for user in users:
+            user["_id"] = str(user["_id"])
         return {"users": users}
+    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
@@ -39,15 +45,16 @@ async def get_all_groups():
     groups_data = []
     try:
         groups = list(groups_collection.find({}, {"_id": 0}))
-
+        print(f"Fetched groups: {groups}")
         for group in groups:
-            members_id_list = group.get("members", [])
+            members_id_list     = group.get("members_id", [])
             member_details = list(users_collection.find(
                 {"_id": {"$in": [ObjectId(member_id) for member_id in members_id_list]}},
                 {"_id": 0, "password": 0}
             ))
             group_info = {
-                "group_name": group.get("group_name"),
+                "_id": group["_id"],
+                "name": group.get("name"),
                 "members": member_details
             }
             groups_data.append(group_info)
@@ -62,7 +69,7 @@ async def create_group(group: GroupModel):
     """
     Create a new group with the given name and member IDs.
     """
-
+    print(f"Creating group: {group.dict()}")
     try:
       groups_collection.insert_one(group.dict())
       return {"message": "Group created successfully", "group": group.dict()}
@@ -76,13 +83,16 @@ async def add_members_to_group(group_id: str, add_members_data: AddMembersModel)
     """
 
     try:
+        # Handle both 'members' and 'members_id' field names
+        members_to_add = add_members_data.members if hasattr(add_members_data, 'members') else add_members_data.members_id
+        
         result = groups_collection.update_one(
             {"_id": ObjectId(group_id)},
-            {"$addToSet": {"members": {"$each": add_members_data.members_id}}}
+            {"$addToSet": {"members_id": {"$each": add_members_data.members_id}}} # addToSet to avoid duplicates
         )
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Group not found")
-        return {"message": f"Members added to group {group_id}", "added_members": add_members_data.members_id}
+        return {"message": f"Members added to group {group_id}", "added_members": members_to_add}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
