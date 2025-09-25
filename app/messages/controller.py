@@ -27,8 +27,15 @@ class ConnectionManager:
     def disconnect(self, user_id: str):
         self.active_users.pop(user_id, None)
 
+    # Delete messages that have been received by all intended recipients
+    async def delete_messages_if_all_received(self):
+        # Delete messages
+        await messages_collection.delete_many({
+            "$expr": {"$eq": [{"$size": "$received_by"}, {"$size": "$intended_for"}]}
+        })
+
     # Send a message to a specific group
-    async def send_msg_to_group(self, group_id: str, sender_id: str, message: str):
+    async def send_message_to_group(self, group_id: str, sender_id: str, message: str):
         # Find the group in the database
         group = await groups_collection.find_one({"_id": ObjectId(group_id)})
         if not group:
@@ -43,13 +50,14 @@ class ConnectionManager:
             "group_id": group_id,
             "sender_id": sender_id,
             "message": message,
-            "delivered_to": [sender_id],
+            "received_by": [sender_id],
+            "intended_for": group["members"],
             "created_at": datetime.now()
         }
         msg_insert_result = await messages_collection.insert_one(msg_doc)
 
         # Send the message to all active members of the group
-        delivered_to = []
+        received_by = []
 
         for member_id in group["members"]:
             if member_id in self.active_users and member_id != sender_id:
@@ -60,13 +68,45 @@ class ConnectionManager:
                     "message": message,
                     "created_at": msg_doc["created_at"].isoformat()
                 })
-                delivered_to.append(member_id)
+                received_by.append(member_id)
 
-        # Mark messages as delivered
+        # Mark the message as delivered
         await messages_collection.update_one(
             {"_id": msg_insert_result.inserted_id},
-            {"$push": {"delivered_to": {"$each": delivered_to}}}
+            {"$addToSet": {"received_by": {"$each": received_by}}}
         )
+
+        # Delete messages if all intended recipients have received it
+        await self.delete_messages_if_all_received()
+
+    # Check and send undelivered messages to a user
+    async def check_undelivered_messages(self, user_id: str):
+        # Find the all groups the user is a member of
+        group_cursor = groups_collection.find({"members": {"$in": [user_id]}}, {"_id": 1})
+        groups = await group_cursor.to_list(length=None)
+        group_ids = [str(group["_id"]) for group in groups]
+
+        # Find undelivered messages for the user
+        messages_cursor = messages_collection.find(
+            {"group_id": {"$in": group_ids}, "received_by": {"$ne": user_id}})
+        messages = await messages_cursor.to_list(length=None)
+
+        # Send the undelivered message
+        for message in messages:
+            await self.active_users[user_id].send_json({
+                "group_id": message["group_id"],
+                "sender_id": message["sender_id"],
+                "message": message["message"],
+                "created_at": message["created_at"].isoformat()
+            })
+
+        # Mark the messages as delivered
+        ids = [message["_id"] for message in messages]
+        if ids:
+            await messages_collection.update_many(
+                {"_id": {"$in": ids}},
+                {"$addToSet": {"received_by": user_id}}
+            )
 
 # Instantiate the connection manager
 manager = ConnectionManager()
@@ -85,35 +125,17 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
     # Connect the user to the WebSocket (Connect)
     await manager.connect(user_payload["_id"], websocket)
 
-    # Check for undelivered messages and send them
-    group_cursor = groups_collection.find({"members": {"$in": [user_payload["_id"]]}}, {"_id": 1})
-    groups = await group_cursor.to_list(length=None)
-    group_ids = [str(group["_id"]) for group in groups]
-
-    messages_cursor = messages_collection.find({"group_id": {"$in": group_ids}, "delivered_to": {"$ne": user_payload["_id"]}})
-    messages = await messages_cursor.to_list(length=None)
-    for message in messages:
-        # Send the undelivered message
-        await websocket.send_json({
-            "group_id": message["group_id"],
-            "sender_id": message["sender_id"],
-            "message": message["message"],
-            "created_at": message["created_at"].isoformat()
-        })
-
-    ids = [message["_id"] for message in messages]
-    if ids:
-        # Mark messages as delivered
-        await messages_collection.update_many(
-            {"_id": {"$in": ids}},
-            {"$addToSet": {"delivered_to": user_payload["_id"]}}
-        )
+    # Check and send undelivered messages
+    await manager.check_undelivered_messages(user_payload["_id"])
 
     # Listen for incoming messages (Message)
     try:
         while True:
             data = await websocket.receive_json()
-            await manager.send_msg_to_group(data["group_id"], user_payload["_id"], data["message"])
+            if not "group_id" in data or not "message" in data:
+                continue
+
+            await manager.send_message_to_group(data["group_id"], user_payload["_id"], data["message"])
 
     # Handle disconnection (Disconnect)
     except WebSocketDisconnect:
