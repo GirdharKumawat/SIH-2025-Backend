@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Request
-from database import users_collection
+from database import users_collection ,groups_collection
 from app.users.model import UserSignup, UserLogin
 from app.utils import get_password_hash, verify_password, create_access_token, verify_token
 
@@ -130,3 +130,28 @@ async def login(body: UserLogin):
         "token_type": "bearer",
         "access_token": access_token
     }
+
+@user_router.get("/user-groups")
+async def get_user_groups(request: Request):
+    """
+    Get groups of the current user
+    """
+
+    # Get the current user
+    payload = get_current_user(request)
+
+    try:
+        user = await users_collection.find_one({"_id": ObjectId(payload["_id"])})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        groups_cursor = groups_collection.find({"members": str(user["_id"])})
+        groups = await groups_cursor.to_list(length=None)
+
+        for group in groups:    
+            group["_id"] = str(group["_id"])
+
+        return {"groups": groups}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

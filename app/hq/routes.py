@@ -31,9 +31,10 @@ async def get_unverified_users():
     """
 
     try:
-        users_cursor = users_collection.find({"is_verified": False}, {"_id": 0, "password": 0})
+        users_cursor = users_collection.find({"is_verified": False}, {"password": 0})
         users = await users_cursor.to_list(length=None)
-
+        for user in users:
+            user["_id"] = str(user["_id"])
         return {"unverified_users": users}
 
     except Exception as e:
@@ -63,10 +64,11 @@ async def get_all_groups():
 
     groups_data = []
     try:
-        groups_cursor = groups_collection.find({}, {"_id": 0})
+        groups_cursor = groups_collection.find({})
         groups = await groups_cursor.to_list(length=None)
 
         for group in groups:
+            group["_id"] = str(group["_id"])
             members_id_list = group["members"]
 
             users_cursor = users_collection.find(
