@@ -35,22 +35,24 @@ class ConnectionManager:
         })
 
     # Send a message to a specific group
-    async def send_message_to_group(self, group_id: str, sender_id: str, message: str):
+    async def send_message_to_group(self, group_id: str, sender: dict, message: str):
         # Find the group in the database
         group = await groups_collection.find_one({"_id": ObjectId(group_id)})
         if not group:
             return
 
         # Check if the sender is a member of the group
-        if sender_id not in group["members"]:
+        if sender["_id"] not in group["members"]:
             return
 
         # Store the message in the database
         msg_doc = {
             "group_id": group_id,
-            "sender_id": sender_id,
+            "group_name": group["name"],
+            "sender_id": sender["_id"],
+            "sender_username": sender["username"],
             "message": message,
-            "received_by": [sender_id],
+            "received_by": [sender["_id"]],
             "intended_for": group["members"],
             "created_at": datetime.now()
         }
@@ -60,11 +62,13 @@ class ConnectionManager:
         received_by = []
 
         for member_id in group["members"]:
-            if member_id in self.active_users and member_id != sender_id:
+            if member_id in self.active_users and member_id != sender["_id"]:
                 # Send the message
                 await self.active_users[member_id].send_json({
                     "group_id": group_id,
-                    "sender_id": sender_id,
+                    "group_name": group["name"],
+                    "sender_id": sender["_id"],
+                    "sender_username": sender["username"],
                     "message": message,
                     "created_at": msg_doc["created_at"].isoformat()
                 })
@@ -95,7 +99,9 @@ class ConnectionManager:
         for message in messages:
             await self.active_users[user_id].send_json({
                 "group_id": message["group_id"],
+                "group_name": message["group_name"],
                 "sender_id": message["sender_id"],
+                "sender_username": message["sender_username"],
                 "message": message["message"],
                 "created_at": message["created_at"].isoformat()
             })
@@ -135,7 +141,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             if not "group_id" in data or not "message" in data:
                 continue
 
-            await manager.send_message_to_group(data["group_id"], user_payload["_id"], data["message"])
+            await manager.send_message_to_group(data["group_id"], user_payload, data["message"])
 
     # Handle disconnection (Disconnect)
     except WebSocketDisconnect:
