@@ -97,6 +97,7 @@ class ConnectionManager:
 
         # Send the undelivered message
         for message in messages:
+            print("Sending undelivered message to user:", user_id,"this : ",message["message"])
             await self.active_users[user_id].send_json({
                 "group_id": message["group_id"],
                 "group_name": message["group_name"],

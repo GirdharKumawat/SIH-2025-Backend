@@ -107,24 +107,56 @@ async def create_group(group: GroupModel):
 async def add_members_to_group(group_id: str, add_members_data: AddMembersModel):
     """
     Add members to an existing group by group ID
+    Expected format: {"members": ["user_id1", "user_id2"]}
     """
-
     try:
-        # Handle both 'members' and 'members_id' field names
-        members_to_add = add_members_data.members if hasattr(add_members_data, 'members') else add_members_data.members_id
-
+        # Validate group_id format
+        if not ObjectId.is_valid(group_id):
+            raise HTTPException(status_code=400, detail="Invalid group ID format")
+        
+        # Check if group exists
+        group = await groups_collection.find_one({"_id": ObjectId(group_id)})
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        # Validate that all member IDs are valid ObjectIds
+        invalid_ids = []
+        for member_id in add_members_data.members:
+            if not ObjectId.is_valid(member_id):
+                invalid_ids.append(member_id)
+        
+        if invalid_ids:
+            raise HTTPException(status_code=400, detail=f"Invalid member IDs: {invalid_ids}")
+        
+        # Check if users exist
+        existing_users = await users_collection.find(
+            {"_id": {"$in": [ObjectId(mid) for mid in add_members_data.members]}},
+            {"_id": 1}
+        ).to_list(length=None)
+        
+        existing_user_ids = [str(user["_id"]) for user in existing_users]
+        non_existing_users = [mid for mid in add_members_data.members if mid not in existing_user_ids]
+        
+        if non_existing_users:
+            raise HTTPException(status_code=400, detail=f"Users not found: {non_existing_users}")
+        
         result = await groups_collection.update_one(
             {"_id": ObjectId(group_id)},
-            {"$addToSet": {"members": {"$each": add_members_data.members_id}}}
+            {"$addToSet": {"members": {"$each": add_members_data.members}}}
         )
-        if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Group not found")
-
-        return {"message": f"Members added to group {group_id}", "added_members": members_to_add}
-
+        
+        return {
+            "message": f"Members added to group {group_id}",
+            "added_members": add_members_data.members,
+            "members_added_count": len(add_members_data.members)
+        }
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
+
+       
 @hq_router.delete("/delete-member/{group_id}/{member_id}")
 async def delete_member_from_group(group_id: str, member_id: str):
     """

@@ -55,6 +55,7 @@ async def get_user(request: Request):
         raise HTTPException(status_code=404, detail="User not found")
 
     return {
+        "_id": str(user["_id"]),
         "role": user["role"],
         "username": user["username"],
         "email": user["email"],
@@ -150,8 +151,31 @@ async def get_user_groups(request: Request):
 
         for group in groups:    
             group["_id"] = str(group["_id"])
+        
+            # member id and neme/username with group
+        groups_with_members = []
+        
+        for group in groups:
+            members_id_list = group["members"]
 
-        return {"groups": groups}
+            users_cursor = users_collection.find(
+                {"_id": {"$in": [ObjectId(member_id) for member_id in members_id_list]}},
+                {"password": 0,"role":0,"email":0,"is_active":0,"is_verified":0,"created_at":0}
+            )
+            member_details = await users_cursor.to_list(length=None)
+
+            for member in member_details:
+                member["_id"] = str(member["_id"])
+            
+            group_info = {
+                "_id": group["_id"],
+                "name": group["name"],
+                "members": member_details
+            }
+            groups_with_members.append(group_info)
+        
+
+        return {"groups": groups_with_members}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
