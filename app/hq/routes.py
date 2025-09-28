@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from database import users_collection ,groups_collection
 from bson import ObjectId
 from app.hq.model import GroupModel, AddMembersModel
+import os, base64
 
 # Router for HQ endpoints
 hq_router = APIRouter()
@@ -96,9 +97,15 @@ async def create_group(group: GroupModel):
     """
 
     try:
-      await groups_collection.insert_one(group.model_dump())
+        # Generate a new symmetric key
+        symmetric_key_bytes = os.urandom(32)
 
-      return {"message": "Group created successfully", "group": group.model_dump()}
+        group_data = group.model_dump()
+        group_data["symmetric_key"] = base64.b64encode(symmetric_key_bytes).decode()
+
+        await groups_collection.insert_one(group_data)
+
+        return {"message": "Group created successfully", "group": group_data}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

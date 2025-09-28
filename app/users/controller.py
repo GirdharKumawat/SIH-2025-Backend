@@ -166,10 +166,11 @@ async def get_user_groups(request: Request):
 
             for member in member_details:
                 member["_id"] = str(member["_id"])
-            
+
             group_info = {
                 "_id": group["_id"],
                 "name": group["name"],
+                "symmetric_key": group["symmetric_key"],
                 "members": member_details
             }
             groups_with_members.append(group_info)
