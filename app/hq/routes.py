@@ -74,9 +74,12 @@ async def get_all_groups():
 
             users_cursor = users_collection.find(
                 {"_id": {"$in": [ObjectId(member_id) for member_id in members_id_list]}},
-                {"_id": 0, "password": 0}
+                {"password": 0}
             )
             member_details = await users_cursor.to_list(length=None)
+
+            for member in member_details:
+                member["_id"] = str(member["_id"])
 
             group_info = {
                 "_id": group["_id"],
@@ -105,7 +108,7 @@ async def create_group(group: GroupModel):
 
         await groups_collection.insert_one(group_data)
 
-        return {"message": "Group created successfully", "group": group_data}
+        return {"message": "Group created successfully"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
