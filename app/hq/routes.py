@@ -52,8 +52,8 @@ async def set_user_verified(id: str):
         result = await users_collection.update_one({"_id":ObjectId(id) }, {"$set": {"is_verified": True}})
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="User not found")
-
-        await create_log(username="admin", action="VERIFY_USER", target=id)
+        user = await users_collection.find_one({"_id": ObjectId(id)})
+        await create_log(username="admin", action="VERIFY_USER", target=user["username"]) # username
         return {"message": f"User {id} has been verified"}
 
     except Exception as e:
@@ -158,8 +158,8 @@ async def add_members_to_group(group_id: str, add_members_data: AddMembersModel)
             {"_id": ObjectId(group_id)},
             {"$addToSet": {"members": {"$each": add_members_data.members}}}
         )
-        
-        await create_log(username="admin", action="ADD_MEMBERS_TO_GROUP", target=group_id)
+        group = await groups_collection.find_one({"_id": ObjectId(group_id)})
+        await create_log(username="admin", action="ADD_MEMBERS_TO_GROUP", target=group["name"])
         return {
             "message": f"Members added to group {group_id}",
             "added_members": add_members_data.members,
@@ -186,7 +186,9 @@ async def delete_member_from_group(group_id: str, member_id: str):
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Group not found")
 
-        await create_log(username="admin", action="REMOVE_MEMBER_FROM_GROUP", target=f"{member_id} from {group_id}")
+        user = await users_collection.find_one({"_id": ObjectId(member_id)})
+        group = await groups_collection.find_one({"_id": ObjectId(group_id)})
+        await create_log(username="admin", action="REMOVE_MEMBER_FROM_GROUP", target=f"{user["username"] } from {group["name"]}")
         return {"message": f"Member {member_id} removed from group {group_id}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -199,11 +201,13 @@ async def delete_group(group_id: str):
     """
 
     try:
+        group = await groups_collection.find_one({"_id": ObjectId(group_id)})
         result = await groups_collection.delete_one({"_id":ObjectId(group_id) })
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Group not found")
 
-        await create_log(username="admin", action="DELETE_GROUP", target=group_id)
+        
+        await create_log(username="admin", action="DELETE_GROUP", target=group["name"])
         return {"message": f"Group {group_id} has been deleted"}
 
     except Exception as e:
@@ -216,6 +220,7 @@ async def delete_user(user_id: str):
     """
 
     try:
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
         result = await users_collection.delete_one({"_id": ObjectId(user_id)})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="User not found")
@@ -226,7 +231,7 @@ async def delete_user(user_id: str):
             {"$pull": {"members": user_id}}
         )
 
-        await create_log(username="admin", action="DELETE_USER", target=user_id)
+        await create_log(username="admin", action="DELETE_USER", target=user["username"])
         return {"message": f"User {user_id} has been deleted"}
 
     except Exception as e:

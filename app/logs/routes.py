@@ -26,24 +26,8 @@ async def get_all_logs():
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     
-@log_router.delete("/delete-log/{id}")
-async def delete_log(id: str):
-    """
-    Delete a log by its ID
-    """
+ 
 
-    try:
-        result = await logs_collection.delete_one({"_id":ObjectId(id) })
-        if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Log not found")
-
-        return {"message": f"Log {id} has been deleted"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-    
-    # utility function to create a log
 async def create_log(username: str, action: str, target: str = None):
     """
     Insert a security log entry into MongoDB.
