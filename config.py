@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     # CORS
     allowed_origins: List[str]
 
+    # AWS s3
+    aws_access_key: str
+    aws_secret_access_key: str
+    aws_region: str
+    s3_bucket_name: str
+
     # Import from .env file
     model_config = SettingsConfigDict(env_file=".env")
 
