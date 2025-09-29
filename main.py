@@ -23,4 +23,4 @@ app.include_router(message_router, prefix="/api/messages")
 app.include_router(hq_router, prefix="/api/hq")
 app.include_router(log_router, prefix="/api/logs")
 # Run command:
-# uvicorn main:app --reload
+# uvicorn main:app --host 0.0.0.0 --port 8000 --reload

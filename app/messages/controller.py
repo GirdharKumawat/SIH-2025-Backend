@@ -1,13 +1,26 @@
+import os
 from datetime import datetime
+from uuid import uuid4
 from bson import ObjectId
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, File, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from app.users.controller import get_current_user_from_token
+from config import settings
 from database import groups_collection, messages_collection
 from typing import Dict
+import boto3
 
 # Router for message endpoints
 message_router = APIRouter()
+
+# Create boto3 client
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=settings.aws_access_key,
+    aws_secret_access_key=settings.aws_secret_access_key,
+    region_name=settings.aws_region
+)
 
 class ConnectionManager:
     """
@@ -117,6 +130,57 @@ class ConnectionManager:
 
 # Instantiate the connection manager
 manager = ConnectionManager()
+
+@message_router.post('/upload')
+async def upload_file(group_id: str, access_token: str, file: UploadFile = File(...)):
+    """
+    Endpoint to upload a file
+    """
+
+    if not file:
+        raise HTTPException(status_code=400, detail="No file uploaded")
+
+    # Check the file size
+    contents = await file.read()
+    size = len(contents)
+    if not 0 < size <= 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size must be between 0 and 10MB")
+
+    # Check the file type
+    file_type = file.content_type
+    if file_type not in ["image/png", "image/jpg", "image/jpeg", "application/pdf"]:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    # Generate unique filename while preserving extension
+    file_extension = os.path.splitext(file.filename)[1]
+    unique_filename = f"{uuid4()}{file_extension}"
+
+    # Rewind the stream for the actual upload
+    file.file.seek(0)
+
+    # Upload using threadpool (boto3 is sync)
+    await run_in_threadpool(
+        s3_client.upload_fileobj,
+        file.file,
+        settings.s3_bucket_name,
+        unique_filename,
+        {"ContentType": file_type},
+    )
+
+    sender = get_current_user_from_token(access_token)
+
+    message = {
+        "type": "file",
+        "filename": file.filename,
+        "url": f"https://{settings.s3_bucket_name}.s3.{settings.aws_region}.amazonaws.com/{unique_filename}"
+    }
+    await manager.send_message_to_group(group_id, sender, message)
+
+    return {
+        "type": "file",
+        "filename": file.filename,
+        "url": message["url"]
+    }
 
 @message_router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str):
