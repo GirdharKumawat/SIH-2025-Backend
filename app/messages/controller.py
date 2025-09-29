@@ -132,13 +132,19 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 @message_router.post('/upload')
-async def upload_file(group_id: str, access_token: str, file: UploadFile = File(...)):
+async def upload_file(access_token: str, file: UploadFile = File(...)):
     """
     Endpoint to upload a file
     """
 
+    # Check if the file is provided
     if not file:
         raise HTTPException(status_code=400, detail="No file uploaded")
+
+    # Check if the user is authenticated
+    user_payload = get_current_user_from_token(access_token)
+    if not user_payload:
+        raise HTTPException(status_code=401, detail="Invalid access token")
 
     # Check the file size
     contents = await file.read()
@@ -167,19 +173,10 @@ async def upload_file(group_id: str, access_token: str, file: UploadFile = File(
         {"ContentType": file_type},
     )
 
-    sender = get_current_user_from_token(access_token)
-
-    message = {
-        "type": "file",
-        "filename": file.filename,
-        "url": f"https://{settings.s3_bucket_name}.s3.{settings.aws_region}.amazonaws.com/{unique_filename}"
-    }
-    await manager.send_message_to_group(group_id, sender, message)
-
     return {
         "type": "file",
         "filename": file.filename,
-        "url": message["url"]
+        "url": f"https://{settings.s3_bucket_name}.s3.{settings.aws_region}.amazonaws.com/{unique_filename}"
     }
 
 @message_router.websocket("/ws")
