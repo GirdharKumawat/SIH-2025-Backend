@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 from database import users_collection ,groups_collection
 from app.users.model import UserSignup, UserLogin
 from app.utils import get_password_hash, verify_password, create_access_token, verify_token
-
+from app.logs.routes import create_log
 # Router for user endpoints
 user_router = APIRouter()
 
@@ -96,7 +96,7 @@ async def signup(body: UserSignup):
         "username": body.username,
         "email": body.email
     })
-
+    await create_log(username=body.username, action="SIGNUP")
     return {
         "message": "User created successfully",
         "token_type": "bearer",
@@ -125,6 +125,8 @@ async def login(body: UserLogin):
         "username": user["username"],
         "email": user["email"]
     })
+    
+    await create_log(username=user["username"], action="LOGIN")
 
     return {
         "message": "User logged in successfully",
