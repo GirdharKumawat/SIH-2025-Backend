@@ -2,11 +2,8 @@ from fastapi import APIRouter, HTTPException
 from database import users_collection ,groups_collection
 from bson import ObjectId
 from app.hq.model import GroupModel, AddMembersModel
-<<<<<<< HEAD
 from app.logs.routes import create_log
-=======
 import os, base64
->>>>>>> c1d1aa8d0df0a38bc9cf58468b9ef1f55b840a23
 
 # Router for HQ endpoints
 hq_router = APIRouter()
@@ -85,11 +82,7 @@ async def get_all_groups():
 
             for member in member_details:
                 member["_id"] = str(member["_id"])
-<<<<<<< HEAD
                 
-=======
-
->>>>>>> c1d1aa8d0df0a38bc9cf58468b9ef1f55b840a23
             group_info = {
                 "_id": group["_id"],
                 "name": group["name"],
@@ -109,13 +102,6 @@ async def create_group(group: GroupModel):
     """
 
     try:
-<<<<<<< HEAD
-        await groups_collection.insert_one(group.model_dump())
-        
-        await create_log(username="admin", action="CREATE_GROUP", target=group.name)
-        
-        return {"message": "Group created successfully", "group": group.model_dump()}
-=======
         # Generate a new symmetric key
         symmetric_key_bytes = os.urandom(32)
 
@@ -123,9 +109,10 @@ async def create_group(group: GroupModel):
         group_data["symmetric_key"] = base64.b64encode(symmetric_key_bytes).decode()
 
         await groups_collection.insert_one(group_data)
+        
+        await create_log(username="admin", action="CREATE_GROUP", target=group.name)
 
         return {"message": "Group created successfully"}
->>>>>>> c1d1aa8d0df0a38bc9cf58468b9ef1f55b840a23
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -229,13 +216,18 @@ async def delete_user(user_id: str):
     """
 
     try:
-        result = await users_collection.delete_one({"_id":ObjectId(user_id) })
+        result = await users_collection.delete_one({"_id": ObjectId(user_id)})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="User not found")
+
+        # Also remove the user from any groups they are a member of
+        await groups_collection.update_many(
+            {"members": user_id},
+            {"$pull": {"members": user_id}}
+        )
 
         await create_log(username="admin", action="DELETE_USER", target=user_id)
         return {"message": f"User {user_id} has been deleted"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
