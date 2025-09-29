@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from database import users_collection ,groups_collection
 from bson import ObjectId
 from app.hq.model import GroupModel, AddMembersModel
+from app.logs.routes import create_log
 
 # Router for HQ endpoints
 hq_router = APIRouter()
@@ -51,6 +52,7 @@ async def set_user_verified(id: str):
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="User not found")
 
+        await create_log(username="admin", action="VERIFY_USER", target=id)
         return {"message": f"User {id} has been verified"}
 
     except Exception as e:
@@ -73,10 +75,13 @@ async def get_all_groups():
 
             users_cursor = users_collection.find(
                 {"_id": {"$in": [ObjectId(member_id) for member_id in members_id_list]}},
-                {"_id": 0, "password": 0}
+                {"password": 0}
             )
             member_details = await users_cursor.to_list(length=None)
 
+            for member in member_details:
+                member["_id"] = str(member["_id"])
+                
             group_info = {
                 "_id": group["_id"],
                 "name": group["name"],
@@ -96,9 +101,11 @@ async def create_group(group: GroupModel):
     """
 
     try:
-      await groups_collection.insert_one(group.model_dump())
-
-      return {"message": "Group created successfully", "group": group.model_dump()}
+        await groups_collection.insert_one(group.model_dump())
+        
+        await create_log(username="admin", action="CREATE_GROUP", target=group.name)
+        
+        return {"message": "Group created successfully", "group": group.model_dump()}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -145,6 +152,7 @@ async def add_members_to_group(group_id: str, add_members_data: AddMembersModel)
             {"$addToSet": {"members": {"$each": add_members_data.members}}}
         )
         
+        await create_log(username="admin", action="ADD_MEMBERS_TO_GROUP", target=group_id)
         return {
             "message": f"Members added to group {group_id}",
             "added_members": add_members_data.members,
@@ -171,6 +179,43 @@ async def delete_member_from_group(group_id: str, member_id: str):
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Group not found")
 
+        await create_log(username="admin", action="REMOVE_MEMBER_FROM_GROUP", target=f"{member_id} from {group_id}")
         return {"message": f"Member {member_id} removed from group {group_id}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@hq_router.delete("/delete-group/{group_id}")
+async def delete_group(group_id: str):
+    """
+    Delete a group by its ID
+    """
+
+    try:
+        result = await groups_collection.delete_one({"_id":ObjectId(group_id) })
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Group not found")
+
+        await create_log(username="admin", action="DELETE_GROUP", target=group_id)
+        return {"message": f"Group {group_id} has been deleted"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+@hq_router.delete("/delete-user/{user_id}")
+async def delete_user(user_id: str):
+    """
+    Delete a user by their ID
+    """
+
+    try:
+        result = await users_collection.delete_one({"_id":ObjectId(user_id) })
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        await create_log(username="admin", action="DELETE_USER", target=user_id)
+        return {"message": f"User {user_id} has been deleted"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    

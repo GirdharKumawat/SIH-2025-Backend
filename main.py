@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.users.controller import user_router
 from app.messages.controller import message_router
 from app.hq.routes import hq_router
+from app.logs.routes import log_router
 
 # Initialize FastAPI app
 app = FastAPI(title="Chat App API")
@@ -20,6 +21,6 @@ app.add_middleware(
 app.include_router(user_router, prefix="/api/users")
 app.include_router(message_router, prefix="/api/messages")
 app.include_router(hq_router, prefix="/api/hq")
-
+app.include_router(log_router, prefix="/api/logs")
 # Run command:
 # uvicorn main:app --reload

@@ -9,3 +9,4 @@ db = client["chatapp"]
 users_collection = db.users
 groups_collection = db.groups
 messages_collection = db.messages
+logs_collection = db.logs
