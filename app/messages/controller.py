@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, File, UploadFile
@@ -67,7 +67,7 @@ class ConnectionManager:
             "message": message,
             "received_by": [sender["_id"]],
             "intended_for": group["members"],
-            "created_at": datetime.now()
+            "created_at": datetime.now(timezone.utc)
         }
         msg_insert_result = await messages_collection.insert_one(msg_doc)
 

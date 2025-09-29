@@ -1,7 +1,7 @@
 from database import logs_collection
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timezone
 log_router = APIRouter()
 
 
@@ -57,7 +57,7 @@ async def create_log(username: str, action: str, target: str = None):
         "username": username,
         "action": action,
         "target": target,
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.now(timezone.utc)
     }
     await logs_collection.insert_one(log_entry)
     
