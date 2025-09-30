@@ -25,7 +25,6 @@ async def get_all_logs():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
-    
  
 
 async def create_log(username: str, action: str, target: str = None):

@@ -159,7 +159,8 @@ async def add_members_to_group(group_id: str, add_members_data: AddMembersModel)
             {"$addToSet": {"members": {"$each": add_members_data.members}}}
         )
         group = await groups_collection.find_one({"_id": ObjectId(group_id)})
-        await create_log(username="admin", action="ADD_MEMBERS_TO_GROUP", target=group["name"])
+        user = await users_collection.find_one({"_id": ObjectId(add_members_data.members[0])})
+        await create_log(username="admin", action="ADD_MEMBERS_TO_GROUP", target=f"{user["username"] } to {group["name"]}")
         return {
             "message": f"Members added to group {group_id}",
             "added_members": add_members_data.members,
