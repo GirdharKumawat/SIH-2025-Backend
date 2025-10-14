@@ -84,6 +84,7 @@ async def signup(body: UserSignup):
         "username": body.username,
         "email": body.email,
         "password": hashed_password,
+        "pubilc_key": body.pubilc_key,
         "is_active": True,
         "is_verified": False,
         "created_at": datetime.now(timezone.utc)
@@ -108,7 +109,7 @@ async def login(body: UserLogin):
     """
     User login endpoint
     """
-
+    print(body)
     # Find the user
     user = await users_collection.find_one({"username": body.username})
     if not user:
@@ -142,15 +143,16 @@ async def get_user_groups(request: Request):
 
     # Get the current user
     payload = get_current_user(request)
-
+    print("payload:",payload)
     try:
         user = await users_collection.find_one({"_id": ObjectId(payload["_id"])})
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        groups_cursor = groups_collection.find({"members": str(user["_id"])})
+        groups_cursor = groups_collection.find({"members.user_id": str(user["_id"])})
         groups = await groups_cursor.to_list(length=None)
 
+        print("groups: ",groups)
         for group in groups:    
             group["_id"] = str(group["_id"])
         
@@ -158,12 +160,23 @@ async def get_user_groups(request: Request):
         groups_with_members = []
         
         for group in groups:
-            members_id_list = group["members"]
+            members_data = group["members"]
+            
+            # Extract user_ids from member objects
+            members_id_list = []
+            for member in members_data:
+                if isinstance(member, dict) and "user_id" in member:
+                    members_id_list.append(member["user_id"])
+                elif isinstance(member, str):
+                    members_id_list.append(member)
 
             users_cursor = users_collection.find(
                 {"_id": {"$in": [ObjectId(member_id) for member_id in members_id_list]}},
+                
                 {"password": 0,"role":0,"email":0,"is_active":0,"is_verified":0,"created_at":0}
             )
+            
+            
             member_details = await users_cursor.to_list(length=None)
 
             for member in member_details:
@@ -172,7 +185,7 @@ async def get_user_groups(request: Request):
             group_info = {
                 "_id": group["_id"],
                 "name": group["name"],
-                "symmetric_key": group["symmetric_key"],
+                "admin": group["admin"],
                 "members": member_details
             }
             groups_with_members.append(group_info)

@@ -96,6 +96,23 @@ class ConnectionManager:
         # Delete messages if all intended recipients have received it
         await self.delete_messages_if_all_received()
 
+    async def send_typing_status_to_group(self, group_id: str, sender: dict, is_typing: bool):
+        group = await groups_collection.find_one({"_id": ObjectId(group_id)})
+        if not group:
+            return
+
+        if sender["_id"] not in group["members"]:
+            return
+
+        # Notify all connected users except the sender
+        for member_id in group["members"]:
+            if member_id in self.active_users and member_id != sender["_id"]:
+                await self.active_users[member_id].send_json({
+                    "type": "typing",
+                    "group_id": group_id,
+                    "username": sender["username"],
+                    "is_typing": is_typing
+                })
     # Check and send undelivered messages to a user
     async def check_undelivered_messages(self, user_id: str):
         # Find the all groups the user is a member of
@@ -200,6 +217,13 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
     try:
         while True:
             data = await websocket.receive_json()
+            
+            data_type = data.get("type", "message")
+            if data_type == "typing":
+                is_typing = data.get("is_typing", False)
+                if "group_id" in data:
+                    await manager.send_typing_status_to_group(data["group_id"], user_payload, is_typing)
+            
             if not "group_id" in data or not "message" in data:
                 continue
 

@@ -72,7 +72,15 @@ async def get_all_groups():
 
         for group in groups:
             group["_id"] = str(group["_id"])
-            members_id_list = group["members"]
+            members_data = group["members"]
+            
+            # Extract user_ids from member objects
+            members_id_list = []
+            for member in members_data:
+                if isinstance(member, dict) and "user_id" in member:
+                    members_id_list.append(member["user_id"])
+                elif isinstance(member, str):
+                    members_id_list.append(member)
 
             users_cursor = users_collection.find(
                 {"_id": {"$in": [ObjectId(member_id) for member_id in members_id_list]}},
@@ -102,16 +110,24 @@ async def create_group(group: GroupModel):
     """
 
     try:
-        # Generate a new symmetric key
-        symmetric_key_bytes = os.urandom(32)
-
-        group_data = group.model_dump()
-        group_data["symmetric_key"] = base64.b64encode(symmetric_key_bytes).decode()
-
-        await groups_collection.insert_one(group_data)
         
-        await create_log(username="admin", action="CREATE_GROUP", target=group.name)
+        group_data = group.model_dump()
+        group_data["admin"] = group.members[0]
+        
+        members = []
 
+        memebers_id = group_data["members"]
+        for member_id in memebers_id:
+            curr_member = {
+                "user_id": member_id,
+                "is_new": True
+            }
+            members.append(curr_member)
+        
+        group_data["members"] = members
+                
+        await groups_collection.insert_one(group_data)
+        await create_log(username="admin", action="CREATE_GROUP", target=group.name)
         return {"message": "Group created successfully"}
 
     except Exception as e:

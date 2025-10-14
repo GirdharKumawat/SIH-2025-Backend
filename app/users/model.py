@@ -5,6 +5,7 @@ class UserSignup(BaseModel):
     username: str
     email: EmailStr
     password: str
+    pubilc_key: str
 
 # User login schema
 class UserLogin(BaseModel):
